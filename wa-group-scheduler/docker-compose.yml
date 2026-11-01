@@ -1,0 +1,11 @@
+services:
+  scheduler:
+    build: .
+    container_name: wa-group-scheduler
+    restart: unless-stopped
+    env_file: .env
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./data:/app/data   # WhatsApp login session, schedules and uploaded files
+    shm_size: "1gb"        # Chromium needs more shared memory than Docker's default

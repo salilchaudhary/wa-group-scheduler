@@ -1,0 +1,306 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Group Scheduler</title>
+<style>
+  :root {
+    --bg: #f4f1ea; --card: #fffdf8; --ink: #1d2a24; --muted: #6b766f; --line: #e2ddd1;
+    --accent: #128c5e; --accent-ink: #fff; --warn: #b4531a; --bad: #b42318; --soft: #eaf4ee;
+    --radius: 14px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #121614; --card: #1a201d; --ink: #e7ece9; --muted: #93a099; --line: #2c3531;
+            --accent: #2fbf83; --accent-ink: #08130e; --warn: #e39a5c; --bad: #f07a70; --soft: #1f2d26; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink);
+         font: 15px/1.5 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; }
+  header { padding: 22px 20px 6px; max-width: 1080px; margin: 0 auto; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  header h1 { font-size: 20px; margin: 0; letter-spacing: -.01em; }
+  .pill { font-size: 12.5px; padding: 3px 10px; border-radius: 99px; background: var(--soft); color: var(--accent); font-weight: 600; }
+  .pill.off { background: color-mix(in srgb, var(--warn) 15%, transparent); color: var(--warn); }
+  header .spacer { flex: 1; }
+  main { max-width: 1080px; margin: 0 auto; padding: 12px 16px 48px; display: grid; gap: 16px; grid-template-columns: 380px 1fr; align-items: start; }
+  @media (max-width: 860px) { main { grid-template-columns: 1fr; } }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 18px; }
+  .card h2 { font-size: 15px; margin: 0 0 12px; }
+  label { display: block; font-size: 13px; font-weight: 600; margin: 14px 0 6px; color: var(--muted); }
+  input[type=text], input[type=datetime-local], textarea {
+    width: 100%; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line);
+    background: var(--bg); color: var(--ink); font: inherit; }
+  textarea { min-height: 110px; resize: vertical; }
+  input:focus, textarea:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+  .groups { max-height: 220px; overflow: auto; border: 1px solid var(--line); border-radius: 10px; margin-top: 6px; }
+  .groups label { display: flex; gap: 10px; align-items: center; margin: 0; padding: 8px 12px; font-weight: 500; color: var(--ink);
+                  border-bottom: 1px solid var(--line); cursor: pointer; }
+  .groups label:last-child { border-bottom: 0; }
+  .groups small { color: var(--muted); margin-left: auto; }
+  .sel-head { display: flex; justify-content: space-between; align-items: center; margin-top: 10px; font-size: 13.5px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; max-height: 120px; overflow: auto; }
+  .chip { display: inline-flex; align-items: center; gap: 4px; background: var(--soft); color: var(--ink);
+          border-radius: 99px; padding: 3px 4px 3px 10px; font-size: 13px; max-width: 100%; }
+  .chip button { background: transparent; color: var(--muted); padding: 0 6px; font-size: 15px; line-height: 1; }
+  .chip button:hover { color: var(--bad); }
+  .row { display: flex; gap: 8px; align-items: center; }
+  button { font: inherit; border: 0; border-radius: 10px; padding: 10px 14px; cursor: pointer; font-weight: 600; }
+  .primary { background: var(--accent); color: var(--accent-ink); width: 100%; margin-top: 18px; }
+  .primary:disabled { opacity: .5; cursor: not-allowed; }
+  .ghost { background: transparent; color: var(--muted); border: 1px solid var(--line); padding: 6px 10px; font-size: 13px; }
+  .ghost:hover { color: var(--ink); }
+  .danger:hover { color: var(--bad); border-color: var(--bad); }
+  .msg { font-size: 13.5px; margin-top: 10px; min-height: 1em; }
+  .msg.err { color: var(--bad); } .msg.ok { color: var(--accent); }
+  .qr { text-align: center; }
+  .qr img { width: 260px; max-width: 100%; border-radius: 10px; background: #fff; padding: 8px; }
+  .qr ol { text-align: left; color: var(--muted); font-size: 14px; padding-left: 20px; }
+  .tabs { display: flex; gap: 6px; margin-bottom: 12px; flex-wrap: wrap; }
+  .tabs button { background: transparent; border: 1px solid var(--line); color: var(--muted); padding: 5px 12px; font-size: 13px; border-radius: 99px; }
+  .tabs button.on { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+  .job { border-top: 1px solid var(--line); padding: 12px 0; display: grid; grid-template-columns: 1fr auto; gap: 6px 12px; }
+  .job:first-of-type { border-top: 0; }
+  .job .when { font-weight: 600; font-variant-numeric: tabular-nums; }
+  .job .grp { color: var(--muted); font-size: 13.5px; }
+  .job .text { grid-column: 1 / -1; white-space: pre-wrap; word-break: break-word; font-size: 14px;
+               background: var(--bg); border-radius: 8px; padding: 8px 10px; max-height: 120px; overflow: auto; }
+  .job .meta { grid-column: 1 / -1; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; font-size: 13px; color: var(--muted); }
+  .status { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; }
+  .s-pending { color: var(--accent); } .s-sent { color: var(--muted); } .s-failed, .s-missed { color: var(--bad); } .s-sending { color: var(--warn); }
+  .actions { display: flex; gap: 6px; align-items: start; }
+  .empty { color: var(--muted); padding: 24px 0; text-align: center; }
+  .hint { font-size: 12.5px; color: var(--muted); margin-top: 6px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Group Scheduler</h1>
+  <span id="connPill" class="pill off">Connecting…</span>
+  <span class="spacer"></span>
+  <button id="logoutBtn" class="ghost danger" hidden>Unlink WhatsApp</button>
+</header>
+
+<main>
+  <section class="card" id="leftCard">
+    <div id="qrBox" class="qr" hidden>
+      <h2>Link your WhatsApp</h2>
+      <img id="qrImg" alt="QR code to link WhatsApp">
+      <ol>
+        <li>Open WhatsApp on your phone</li>
+        <li>Settings → Linked devices → Link a device</li>
+        <li>Scan this code</li>
+      </ol>
+    </div>
+    <div id="waitBox" class="empty">Starting WhatsApp… this can take up to a minute.</div>
+
+    <form id="form" hidden>
+      <h2>New scheduled message</h2>
+      <div class="row" style="justify-content:space-between">
+        <label style="margin:0">Groups you own</label>
+        <button type="button" id="refreshGroups" class="ghost">Refresh</button>
+      </div>
+      <input type="text" id="groupSearch" placeholder="Search groups…" style="margin-top:6px">
+      <div class="groups" id="groupList"></div>
+      <div id="selectedBox"></div>
+      <div class="hint" id="groupHint"></div>
+
+      <label for="message">Message</label>
+      <textarea id="message" placeholder="Type your message (WhatsApp formatting like *bold* works)"></textarea>
+
+      <label for="media">Attachment (optional)</label>
+      <input type="file" id="media">
+      <div class="hint">Images and videos are sent as photos/videos with the message as caption; other files as documents.</div>
+
+      <label for="sendAt">Send at</label>
+      <input type="datetime-local" id="sendAt" required>
+      <div class="hint" id="tzHint"></div>
+
+      <button class="primary" id="submitBtn" type="submit">Schedule</button>
+      <div class="msg" id="formMsg"></div>
+    </form>
+  </section>
+
+  <section class="card">
+    <div class="row" style="justify-content:space-between">
+      <h2 style="margin:0">Scheduled messages</h2>
+    </div>
+    <div class="tabs" id="tabs" style="margin-top:12px">
+      <button data-f="upcoming" class="on">Upcoming</button>
+      <button data-f="done">Sent</button>
+      <button data-f="problem">Failed / missed</button>
+      <button data-f="all">All</button>
+    </div>
+    <div id="jobs"><div class="empty">Loading…</div></div>
+  </section>
+</main>
+
+<script>
+const $ = s => document.querySelector(s);
+let groups = [], filter = 'upcoming', lastStatus = null;
+
+const fmt = iso => new Date(iso).toLocaleString(undefined, { weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' });
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+async function api(url, opts) {
+  const r = await fetch(url, opts);
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(data.error || r.statusText);
+  return data;
+}
+
+$('#tzHint').textContent = 'Your local time (' + Intl.DateTimeFormat().resolvedOptions().timeZone + ')';
+
+function defaultTime() {
+  const d = new Date(Date.now() + 60 * 60 * 1000);
+  d.setMinutes(0, 0, 0);
+  const pad = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+$('#sendAt').value = defaultTime();
+
+async function pollStatus() {
+  try {
+    const s = await api('/api/status');
+    const pill = $('#connPill');
+    const ready = s.status === 'ready';
+    pill.textContent = ready ? `Connected · +${s.me.number}` :
+      ({ qr: 'Waiting for QR scan', authenticated: 'Loading chats…', disconnected: 'Disconnected — reconnecting',
+         auth_failure: 'Login failed — restart & rescan', starting: 'Starting…' }[s.status] || s.status);
+    pill.className = 'pill' + (ready ? '' : ' off');
+    $('#qrBox').hidden = s.status !== 'qr';
+    if (s.qr) $('#qrImg').src = s.qr;
+    $('#waitBox').hidden = s.status === 'qr' || ready;
+    $('#form').hidden = !ready;
+    $('#logoutBtn').hidden = !ready;
+    if (ready && lastStatus !== 'ready') loadGroups();
+    $('#groupHint').textContent = { owner: 'Showing groups you created.', admin: 'Showing groups you created or admin.', all: 'Showing all your groups (GROUP_FILTER=all).' }[s.groupFilter] || '';
+    lastStatus = s.status;
+  } catch (e) { /* ignore transient errors */ }
+  setTimeout(pollStatus, lastStatus === 'ready' ? 10000 : 2500);
+}
+
+async function loadGroups(fresh) {
+  $('#groupList').innerHTML = '<div class="empty">Loading groups…</div>';
+  try {
+    groups = await api('/api/groups' + (fresh ? '?fresh=1' : ''));
+    renderGroups();
+  } catch (e) {
+    $('#groupList').innerHTML = `<div class="empty">${esc(e.message)}</div>`;
+  }
+}
+
+// Selected groups are remembered here, so searching never drops earlier picks.
+const selected = new Map(); // id -> name
+const MAX_SHOWN = 200;      // keep the list fast with thousands of groups
+
+function renderSelected() {
+  const box = $('#selectedBox');
+  if (!selected.size) { box.innerHTML = ''; return; }
+  box.innerHTML = `<div class="sel-head"><b>${selected.size} selected</b>
+      <button type="button" class="ghost" id="clearSel">Clear</button></div>
+    <div class="chips">${[...selected].map(([id, name]) =>
+      `<span class="chip">${esc(name)}<button type="button" data-unsel="${esc(id)}" aria-label="Remove">×</button></span>`).join('')}</div>`;
+}
+
+function renderGroups() {
+  const q = $('#groupSearch').value.toLowerCase();
+  const list = groups.filter(g => g.name.toLowerCase().includes(q));
+  const shown = list.slice(0, MAX_SHOWN);
+  $('#groupList').innerHTML = shown.length ? shown.map(g => `
+    <label><input type="checkbox" value="${esc(g.id)}" ${selected.has(g.id) ? 'checked' : ''}>
+      <span>${esc(g.name)}</span><small>${g.participants} members</small></label>`).join('') +
+      (list.length > MAX_SHOWN ? `<div class="empty">Showing ${MAX_SHOWN} of ${list.length} — type to narrow down</div>` : '')
+    : `<div class="empty">${groups.length ? 'No match' : 'No owned groups found. See README → "No groups show up".'}</div>`;
+  renderSelected();
+}
+$('#groupSearch').addEventListener('input', renderGroups);
+$('#groupList').addEventListener('change', e => {
+  if (e.target.type !== 'checkbox') return;
+  const g = groups.find(x => x.id === e.target.value);
+  if (e.target.checked && g) selected.set(g.id, g.name); else selected.delete(e.target.value);
+  renderSelected();
+});
+$('#selectedBox').addEventListener('click', e => {
+  if (e.target.id === 'clearSel') selected.clear();
+  else if (e.target.dataset.unsel) selected.delete(e.target.dataset.unsel);
+  else return;
+  renderGroups();
+});
+$('#refreshGroups').addEventListener('click', () => loadGroups(true));
+
+$('#form').addEventListener('submit', async e => {
+  e.preventDefault();
+  const msg = $('#formMsg'); msg.className = 'msg'; msg.textContent = '';
+  const ids = [...selected.keys()];
+  const fd = new FormData();
+  ids.forEach(id => fd.append('groupIds', id));
+  fd.append('message', $('#message').value);
+  const local = $('#sendAt').value;
+  if (!local) { msg.className = 'msg err'; msg.textContent = 'Pick a time'; return; }
+  fd.append('sendAt', new Date(local).toISOString());
+  const file = $('#media').files[0];
+  if (file) fd.append('media', file);
+  $('#submitBtn').disabled = true;
+  try {
+    const r = await api('/api/schedules', { method: 'POST', body: fd });
+    msg.className = 'msg ok';
+    msg.textContent = `Scheduled for ${r.created} group${r.created > 1 ? 's' : ''}.`;
+    $('#message').value = ''; $('#media').value = '';
+    selected.clear();
+    renderGroups();
+    loadJobs();
+  } catch (err) {
+    msg.className = 'msg err'; msg.textContent = err.message;
+  } finally { $('#submitBtn').disabled = false; }
+});
+
+$('#tabs').addEventListener('click', e => {
+  if (!e.target.dataset.f) return;
+  filter = e.target.dataset.f;
+  document.querySelectorAll('#tabs button').forEach(b => b.classList.toggle('on', b === e.target));
+  loadJobs();
+});
+
+async function loadJobs() {
+  let jobs;
+  try { jobs = await api('/api/schedules'); } catch { return; }
+  const pick = { upcoming: j => j.status === 'pending' || j.status === 'sending', done: j => j.status === 'sent',
+                 problem: j => j.status === 'failed' || j.status === 'missed', all: () => true }[filter];
+  jobs = jobs.filter(pick);
+  if (filter !== 'upcoming') jobs.reverse();
+  $('#jobs').innerHTML = jobs.length ? jobs.map(j => `
+    <div class="job">
+      <div><div class="when">${fmt(j.sendAt)}</div><div class="grp">${esc(j.groupName)}</div></div>
+      <div class="actions">
+        ${['pending', 'failed', 'missed'].includes(j.status) ? `<button class="ghost" data-now="${j.id}">Send now</button>` : ''}
+        ${j.status !== 'sending' ? `<button class="ghost danger" data-del="${j.id}">${j.status === 'pending' ? 'Cancel' : 'Remove'}</button>` : ''}
+      </div>
+      ${j.message ? `<div class="text">${esc(j.message)}</div>` : ''}
+      <div class="meta">
+        <span class="status s-${j.status}">${j.status}</span>
+        ${j.media ? `<span>📎 ${esc(j.media.name)}</span>` : ''}
+        ${j.sentAt ? `<span>sent ${fmt(j.sentAt)}</span>` : ''}
+        ${j.error ? `<span style="color:var(--bad)">${esc(j.error)}</span>` : ''}
+      </div>
+    </div>`).join('') : '<div class="empty">Nothing here yet.</div>';
+}
+
+$('#jobs').addEventListener('click', async e => {
+  const del = e.target.dataset.del, now = e.target.dataset.now;
+  try {
+    if (del && confirm('Remove this scheduled message?')) await api('/api/schedules/' + del, { method: 'DELETE' });
+    if (now && confirm('Send this message right away?')) await api(`/api/schedules/${now}/send-now`, { method: 'POST' });
+  } catch (err) { alert(err.message); }
+  loadJobs();
+});
+
+$('#logoutBtn').addEventListener('click', async () => {
+  if (!confirm('Unlink this WhatsApp account? Scheduled messages stay, but nothing sends until you scan again.')) return;
+  await api('/api/logout', { method: 'POST' }).catch(() => {});
+});
+
+pollStatus();
+loadJobs();
+setInterval(loadJobs, 10000);
+</script>
+</body>
+</html>
