@@ -43,6 +43,9 @@
           border-radius: 99px; padding: 3px 4px 3px 10px; font-size: 13px; max-width: 100%; }
   .chip button { background: transparent; color: var(--muted); padding: 0 6px; font-size: 15px; line-height: 1; }
   .chip button:hover { color: var(--bad); }
+  .seg { display: inline-flex; background: var(--bg); border: 1px solid var(--line); border-radius: 10px; padding: 3px; gap: 2px; }
+  .seg button { background: transparent; color: var(--muted); padding: 6px 12px; font-size: 13.5px; border-radius: 7px; }
+  .seg button.on { background: var(--accent); color: var(--accent-ink); }
   .row { display: flex; gap: 8px; align-items: center; }
   button { font: inherit; border: 0; border-radius: 10px; padding: 10px 14px; cursor: pointer; font-weight: 600; }
   .primary { background: var(--accent); color: var(--accent-ink); width: 100%; margin-top: 18px; }
@@ -96,10 +99,13 @@
     <form id="form" hidden>
       <h2>New scheduled message</h2>
       <div class="row" style="justify-content:space-between">
-        <label style="margin:0">Groups you own</label>
+        <div class="seg" id="typeSwitch" role="tablist" aria-label="Send to">
+          <button type="button" data-type="groups" class="on" role="tab" aria-selected="true">Groups</button>
+          <button type="button" data-type="communities" role="tab" aria-selected="false">Communities</button>
+        </div>
         <button type="button" id="refreshGroups" class="ghost">Refresh</button>
       </div>
-      <input type="text" id="groupSearch" placeholder="Search groups…" style="margin-top:6px">
+      <input type="text" id="groupSearch" placeholder="Search groups…" style="margin-top:8px">
       <div class="groups" id="groupList"></div>
       <div id="selectedBox"></div>
       <div class="hint" id="groupHint"></div>
@@ -178,15 +184,37 @@ async function pollStatus() {
   setTimeout(pollStatus, lastStatus === 'ready' ? 10000 : 2500);
 }
 
+let groupType = 'groups', loadSeq = 0;
+const typeLabel = () => (groupType === 'communities' ? 'communities' : 'groups');
+
 async function loadGroups(fresh) {
-  $('#groupList').innerHTML = '<div class="empty">Loading groups…</div>';
+  const seq = ++loadSeq; // ignore answers for a category the user has switched away from
+  groups = [];
+  $('#groupList').innerHTML = `<div class="empty">Loading ${typeLabel()}…</div>`;
   try {
-    groups = await api('/api/groups' + (fresh ? '?fresh=1' : ''));
+    const list = await api(`/api/groups?type=${groupType}` + (fresh ? '&fresh=1' : ''));
+    if (seq !== loadSeq) return;
+    groups = list;
     renderGroups();
   } catch (e) {
+    if (seq !== loadSeq) return;
     $('#groupList').innerHTML = `<div class="empty">${esc(e.message)}</div>`;
   }
 }
+
+$('#typeSwitch').addEventListener('click', e => {
+  const t = e.target.dataset.type;
+  if (!t || t === groupType) return;
+  groupType = t;
+  document.querySelectorAll('#typeSwitch button').forEach(b => {
+    const on = b.dataset.type === t;
+    b.classList.toggle('on', on);
+    b.setAttribute('aria-selected', on);
+  });
+  $('#groupSearch').value = '';
+  $('#groupSearch').placeholder = `Search ${typeLabel()}…`;
+  loadGroups();
+});
 
 // Selected groups are remembered here, so searching never drops earlier picks.
 const selected = new Map(); // id -> name
@@ -209,7 +237,7 @@ function renderGroups() {
     <label><input type="checkbox" value="${esc(g.id)}" ${selected.has(g.id) ? 'checked' : ''}>
       <span>${esc(g.name)}</span><small>${g.participants} members</small></label>`).join('') +
       (list.length > MAX_SHOWN ? `<div class="empty">Showing ${MAX_SHOWN} of ${list.length} — type to narrow down</div>` : '')
-    : `<div class="empty">${groups.length ? 'No match' : 'No owned groups found. See README → "No groups show up".'}</div>`;
+    : `<div class="empty">${groups.length ? 'No match' : `No ${typeLabel()} of yours found. Try Refresh in a minute.`}</div>`;
   renderSelected();
 }
 $('#groupSearch').addEventListener('input', renderGroups);
