@@ -57,7 +57,7 @@ app.get('/api/status', (_req, res) => {
 
 app.get('/api/groups', async (req, res) => {
   try {
-    res.json(await wa.getGroups({ fresh: req.query.fresh === '1' }));
+    res.json(await wa.getGroups({ fresh: req.query.fresh === '1', type: req.query.type }));
   } catch (e) {
     res.status(503).json({ error: e.message });
   }
@@ -83,8 +83,7 @@ app.post('/api/schedules', upload.single('media'), async (req, res) => {
     if (sendAt.getTime() < Date.now() - 60_000) throw new Error('That time is in the past');
     if (!groupIds.length) throw new Error('Select at least one group');
 
-    const allowed = await wa.getGroups();
-    const chosen = groupIds.map(id => allowed.find(g => g.id === id));
+    const chosen = await Promise.all(groupIds.map(id => wa.findAllowed(id)));
     if (chosen.some(g => !g)) throw new Error('One of the selected groups is not one you own');
 
     const media = req.file
